@@ -12,6 +12,7 @@ import javax.swing.Icon;
 
 import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.UndoRedoHandler;
+import org.openstreetmap.josm.data.coor.ILatLon;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
@@ -23,15 +24,23 @@ import org.openstreetmap.josm.plugins.routing2.lib.generic.Trip;
 import org.openstreetmap.josm.plugins.routing2.lib.valhalla.ValhallaServer;
 
 public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueListener {
+    private final ILatLon start;
+    private final ILatLon end;
     private Trip trip;
 
     /**
      * Create the layer and fill in the necessary components.
      *
      * @param name Layer name
+     * @param start The start of the route
+     * @param end The end of the route
      */
-    protected RoutingLayer(String name) {
+    protected RoutingLayer(String name, ILatLon start, ILatLon end) {
         super(name);
+        UndoRedoHandler.getInstance().addCommandQueueListener(this);
+        this.start = start;
+        this.end = end;
+        this.commandChanged(0, 0);
     }
 
     @Override
@@ -110,9 +119,13 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
 
     @Override
     public void commandChanged(int queueSize, int redoSize) {
-        // FIXME: send actual data and locations...
-        MainApplication.worker.execute(() -> this
-                .setTrip(new ValhallaServer().generateRoute(MainApplication.getLayerManager().getActiveDataLayer(),
-                        new LatLon(39.077652, -108.458828), new LatLon(39.067613, -108.560153))));
+        MainApplication.worker.execute(() -> this.setTrip(new ValhallaServer()
+                .generateRoute(MainApplication.getLayerManager().getActiveDataLayer(), this.start, this.end)));
+    }
+
+    @Override
+    public synchronized void destroy() {
+        super.destroy();
+        UndoRedoHandler.getInstance().removeCommandQueueListener(this);
     }
 }
