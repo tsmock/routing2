@@ -6,6 +6,9 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
+import java.util.Arrays;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import javax.swing.Action;
 import javax.swing.Icon;
@@ -20,13 +23,17 @@ import org.openstreetmap.josm.gui.MapView;
 import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Legs;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Locations;
+import org.openstreetmap.josm.plugins.routing2.lib.generic.Maneuver;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Trip;
 import org.openstreetmap.josm.plugins.routing2.lib.valhalla.ValhallaServer;
+import org.openstreetmap.josm.tools.ListenerList;
 
 public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueListener {
+    private final ListenerList<Consumer<Trip>> tripConsumers = ListenerList.create();
     private final ILatLon start;
     private final ILatLon end;
     private Trip trip;
+    private Maneuver maneuver;
 
     /**
      * Create the layer and fill in the necessary components.
@@ -82,13 +89,22 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
     public void paint(Graphics2D g, MapView mv, Bounds bbox) {
         final Trip current = this.trip;
         if (current != null) {
+            Path2D.Double maneuverShape = new Path2D.Double();
             for (Legs leg : current.legs()) {
                 double[] shape = leg.shape();
-                final Path2D.Double drawShape = new Path2D.Double();
+                final Path2D.Double drawShape = new Path2D.Double(Path2D.WIND_NON_ZERO, shape.length / 2);
                 for (int i = 0; i < shape.length; i += 2) {
                     final double lat = shape[i];
                     final double lon = shape[i + 1];
                     Point2D p = mv.getPoint2D(new LatLon(lat, lon));
+                    if (this.maneuver != null && i / 2 >= this.maneuver.startShape()
+                            && i / 2 <= this.maneuver.endShape()) {
+                        if (i / 2 == this.maneuver.startShape()) {
+                            maneuverShape.moveTo(p.getX(), p.getY());
+                        } else {
+                            maneuverShape.lineTo(p.getX(), p.getY());
+                        }
+                    }
                     if (i == 0) {
                         drawShape.moveTo(p.getX(), p.getY());
                     } else {
@@ -98,6 +114,9 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
                 g.setColor(Color.GREEN);
                 g.setStroke(new BasicStroke(10));
                 g.draw(drawShape);
+                g.setStroke(new BasicStroke(5));
+                g.setColor(Color.RED);
+                g.draw(maneuverShape);
             }
             if (current.locations() != null) {
                 for (Locations loc : current.locations()) {
@@ -111,10 +130,27 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
 
     /**
      * Set the trip for this layer
-     * @param trip The trip to show the user
+     * @param newTrip The trip to show the user
      */
-    public void setTrip(Trip trip) {
-        this.trip = trip;
+    public void setTrip(Trip newTrip) {
+        this.trip = newTrip;
+        this.tripConsumers.fireEvent(c -> c.accept(newTrip));
+    }
+
+    /**
+     * Get the current trip shown
+     * @return The current trip
+     */
+    public Trip getTrip() {
+        return this.trip;
+    }
+
+    /**
+     * Add a listener for when a trip updates
+     * @param tripConsumer The consumer to notify
+     */
+    public void addTripListener(Consumer<Trip> tripConsumer) {
+        this.tripConsumers.addListener(tripConsumer);
     }
 
     @Override
@@ -127,5 +163,28 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
     public synchronized void destroy() {
         super.destroy();
         UndoRedoHandler.getInstance().removeCommandQueueListener(this);
+    }
+
+    /**
+     * Set the currently highlighted maneuver
+     * @param maneuver The maneuver to highlight
+     */
+    public void setHighlightedManeuver(Maneuver maneuver) {
+        if (maneuver != null
+                && Stream.of(this.trip.legs()).flatMap(l -> Arrays.stream(l.maneuvers())).anyMatch(maneuver::equals)) {
+            this.maneuver = maneuver;
+            this.invalidate();
+        } else if (maneuver == null) {
+            this.maneuver = null;
+            this.invalidate();
+        }
+    }
+
+    /**
+     * Get the currently highlighted maneuver
+     * @return The highlighted maneuver
+     */
+    public Maneuver getHighlightedManeuver() {
+        return this.maneuver;
     }
 }
