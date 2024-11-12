@@ -4,22 +4,28 @@ package org.openstreetmap.josm.plugins.routing2.lib.valhalla;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
+import java.util.concurrent.ForkJoinPool;
 
 import org.openstreetmap.josm.data.coor.ILatLon;
-import org.openstreetmap.josm.data.osm.DataSet;
+import org.openstreetmap.josm.gui.layer.OsmDataLayer;
+import org.openstreetmap.josm.plugins.pbf.io.PbfExporter;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.GooglePolyline;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.IRouter;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Legs;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Locations;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Maneuver;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Trip;
+import org.openstreetmap.josm.spi.preferences.Config;
 import org.openstreetmap.josm.tools.JosmRuntimeException;
 import org.openstreetmap.josm.tools.Logging;
 
 import jakarta.json.Json;
-import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
@@ -32,7 +38,20 @@ import jakarta.json.JsonValue;
 public final class ValhallaServer implements IRouter {
 
     @Override
-    public Trip generateRoute(DataSet dataSet, ILatLon... locations) {
+    public Trip generateRoute(OsmDataLayer layer, ILatLon... locations) {
+        final Path config = generateConfig();
+        final Path dataPath = writeDataSet(layer);
+        try {
+            if (!Files.isDirectory(getDataDir().resolve("valhalla_tiles"))) {
+                Files.createDirectory(getDataDir().resolve("valhalla_tiles"));
+            }
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
+        }
+        generateTimezones(config.resolveSibling("valhalla_tiles").resolve("timezones.sqlite"));
+        generateAdmins(config, dataPath);
+        generateTiles(config, dataPath);
+        generateExtract(config);
         JsonObjectBuilder builder = Json.createObjectBuilder();
         builder.add("costing", "auto").add("directions_options", Json.createObjectBuilder().add("units", "miles"));
         JsonArrayBuilder locationsArray = Json.createArrayBuilder();
@@ -42,10 +61,8 @@ public final class ValhallaServer implements IRouter {
         builder.add("locations", locationsArray);
         Process p;
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder("/usr/local/bin/valhalla_service", // TODO autodetect
-                    "valhalla.json",
-                    "route",
-                    builder.build().toString());
+            ProcessBuilder processBuilder = new ProcessBuilder("valhalla_service", // TODO autodetect
+                    config.toString(), "route", builder.build().toString());
             processBuilder.directory(new File("/Users/tsmock/workspace/josm/plugins/routing2")); // FIXME remove
             p = processBuilder.start();
         } catch (IOException e) {
@@ -72,30 +89,87 @@ public final class ValhallaServer implements IRouter {
         return new Trip(locations1, legs, summary);
     }
 
+    private Path getDataDir() throws IOException {
+        final Path dir = Config.getDirs().getUserDataDirectory(true).toPath().resolve("routing2");
+        if (!Files.isDirectory(dir)) {
+            Files.createDirectory(dir);
+        }
+        return dir;
+    }
+
+    private Path generateConfig() {
+        try {
+            final Path dataDir = getDataDir();
+            final Path config = dataDir.resolve("valhalla.json").toAbsolutePath();
+            if (!Files.exists(config)) {
+                try (InputStream is = runCommand("valhalla_build_config", "--mjolnir-tile-dir",
+                        dataDir.resolve("valhalla_tiles").toString(), "--mjolnir-tile-extract",
+                        dataDir.resolve("valhalla_tiles.tar").toString(), "--mjolnir-timezone",
+                        dataDir.resolve("valhalla_tiles").resolve("timezones.sqlite").toString(), "--mjolnir-admin",
+                        dataDir.resolve("valhalla_tiles").resolve("admins.sqlite").toString())) {
+                    Files.copy(is, config);
+                }
+            }
+            return config;
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
+        }
+    }
+
+    private void generateTimezones(Path output) {
+        if (!Files.exists(output)) {
+            try (InputStream is = runCommand("valhalla_build_timezones")) {
+                Files.copy(is, output);
+            } catch (IOException ioException) {
+                throw new UncheckedIOException(ioException);
+            }
+        }
+    }
+
+    private void generateAdmins(Path config, Path input) {
+        try (InputStream is = runCommand("valhalla_build_admins", "--config", config.toString(), input.toString())) {
+            printStdOut(is);
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
+        }
+    }
+
+    private void generateTiles(Path config, Path input) {
+        try (InputStream is = runCommand("valhalla_build_tiles", "--config", config.toString(), input.toString())) {
+            printStdOut(is);
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
+        }
+    }
+
+    private void generateExtract(Path config) {
+        try (InputStream is = runCommand("valhalla_build_extract", "--config", config.toString(), "-v",
+                "--overwrite")) {
+            printStdOut(is);
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
+        }
+    }
+
     private static Trip.Summary parseSummary(JsonObject summary) {
         return new Trip.Summary(summary.getBoolean("has_time_restrictions", false),
-                summary.getBoolean("has_toll", false),
-                summary.getBoolean("has_highway", false),
-                summary.getBoolean("has_ferry", false),
-                summary.getJsonNumber("min_lat").doubleValue(),
-                summary.getJsonNumber("min_lon").doubleValue(),
-                summary.getJsonNumber("max_lat").doubleValue(),
-                summary.getJsonNumber("max_lon").doubleValue(),
-                summary.getJsonNumber("time").doubleValue(),
-                summary.getJsonNumber("length").doubleValue(),
-                summary.getJsonNumber("cost").doubleValue());
+                summary.getBoolean("has_toll", false), summary.getBoolean("has_highway", false),
+                summary.getBoolean("has_ferry", false), summary.getJsonNumber("min_lat").doubleValue(),
+                summary.getJsonNumber("min_lon").doubleValue(), summary.getJsonNumber("max_lat").doubleValue(),
+                summary.getJsonNumber("max_lon").doubleValue(), summary.getJsonNumber("time").doubleValue(),
+                summary.getJsonNumber("length").doubleValue(), summary.getJsonNumber("cost").doubleValue());
     }
 
     private static Locations parseLocation(JsonValue value) {
         if (value instanceof JsonObject loc) {
-            return new Locations(loc.getJsonNumber("lat").doubleValue(),
-                    loc.getJsonNumber("lon").doubleValue(),
-                    null, Double.NaN , Double.NaN, null, 0L, 0, Double.NaN, // FIXME
-                    false, null, Double.NaN, Double.NaN, Double.NaN, Double.NaN,
-                    Double.NaN, null, null, null, null, null, null, null, null, null, null, null);
+            return new Locations(loc.getJsonNumber("lat").doubleValue(), loc.getJsonNumber("lon").doubleValue(), null,
+                    Double.NaN, Double.NaN, null, 0L, 0, Double.NaN, // FIXME
+                    false, null, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, null, null, null, null,
+                    null, null, null, null, null, null, null);
         }
         return null;
     }
+
     private static Legs parseLeg(JsonValue value) {
         if (value instanceof JsonObject leg) {
             final Maneuver[] maneuvers = leg.getJsonArray("maneuvers").stream().map(ValhallaServer::parseManeuver)
@@ -109,20 +183,56 @@ public final class ValhallaServer implements IRouter {
 
     private static Maneuver parseManeuver(JsonValue value) {
         if (value instanceof JsonObject maneuver) {
-            return new Maneuver(Maneuver.Type.values()[maneuver.getInt("type")],
-                    maneuver.getString("instruction", ""),
+            return new Maneuver(Maneuver.Type.values()[maneuver.getInt("type")], maneuver.getString("instruction", ""),
                     maneuver.getString("verbal_succinct_transition_instruction", ""),
                     maneuver.getString("verbal_pre_transition_instruction", ""),
                     maneuver.getString("verbal_post_transition_instruction", ""),
-                    maneuver.getJsonNumber("time").doubleValue(),
-                    maneuver.getJsonNumber("length").doubleValue(),
-                    maneuver.getJsonNumber("cost").doubleValue(),
-                    maneuver.getInt("begin_shape_index"),
-                    maneuver.getInt("end_shape_index"),
-                    maneuver.getBoolean("verbal_multi_cue", false),
-                    maneuver.getString("travel_mode", ""),
-                    maneuver.getString("travel_type", ""));
+                    maneuver.getJsonNumber("time").doubleValue(), maneuver.getJsonNumber("length").doubleValue(),
+                    maneuver.getJsonNumber("cost").doubleValue(), maneuver.getInt("begin_shape_index"),
+                    maneuver.getInt("end_shape_index"), maneuver.getBoolean("verbal_multi_cue", false),
+                    maneuver.getString("travel_mode", ""), maneuver.getString("travel_type", ""));
         }
         return null;
+    }
+
+    private Path writeDataSet(OsmDataLayer layer) {
+        try {
+            Path saveLocation = getDataDir().resolve(layer.getName() + ".pbf");
+            new PbfExporter().exportData(saveLocation.toFile(), layer);
+            return saveLocation;
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
+        }
+    }
+
+    private static void printStdOut(InputStream is) {
+        try (InputStreamReader isr = new InputStreamReader(is); BufferedReader br = new BufferedReader(isr)) {
+            br.lines().forEach(Logging::info);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static InputStream runCommand(String... args) throws IOException {
+        ProcessBuilder builder = new ProcessBuilder(args);
+        Process p = builder.start();
+        if (false) {
+            try {
+                p.waitFor();
+            } catch (InterruptedException interruptedException) {
+                Logging.error(interruptedException);
+                Thread.currentThread().interrupt();
+                throw new JosmRuntimeException(interruptedException);
+            }
+        }
+        // Do not block here.
+        ForkJoinPool.commonPool().submit(() -> {
+            try (BufferedReader errors = p.errorReader()) {
+                errors.lines().forEach(Logging::error);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+        return p.getInputStream();
     }
 }

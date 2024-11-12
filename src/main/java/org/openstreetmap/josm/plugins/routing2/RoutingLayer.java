@@ -6,9 +6,6 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
-import java.sql.Array;
-import java.util.ArrayList;
-import java.util.List;
 
 import javax.swing.Action;
 import javax.swing.Icon;
@@ -16,15 +13,10 @@ import javax.swing.Icon;
 import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.UndoRedoHandler;
 import org.openstreetmap.josm.data.coor.LatLon;
-import org.openstreetmap.josm.data.osm.DataSet;
-import org.openstreetmap.josm.data.osm.Node;
-import org.openstreetmap.josm.data.osm.OsmDataManager;
-import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapView;
 import org.openstreetmap.josm.gui.layer.Layer;
-import org.openstreetmap.josm.gui.layer.OsmDataLayer;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Legs;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Locations;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Trip;
@@ -114,28 +106,13 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
      */
     public void setTrip(Trip trip) {
         this.trip = trip;
-        // FIXME remove debug code
-        if (MainApplication.getLayerManager().getLayersOfType(OsmDataLayer.class).stream().noneMatch(l -> "Test".equals(l.getName()))) {
-            final DataSet test = new DataSet();
-            for (Legs leg : trip.legs()) {
-                final double[] shape = leg.shape();
-                final List<Node> nodes = new ArrayList<>(shape.length / 2);
-                for (int i = 0; i < shape.length; i += 2) {
-                    final double lat = shape[i];
-                    final double lon = shape[i + 1];
-                    nodes.add(new Node(new LatLon(lat, lon)));
-                }
-                final Way way = new Way();
-                way.setNodes(nodes);
-                test.addPrimitiveRecursive(way);
-            }
-            MainApplication.getLayerManager().addLayer(new OsmDataLayer(test, "Test", null));
-        }
     }
 
     @Override
     public void commandChanged(int queueSize, int redoSize) {
         // FIXME: send actual data and locations...
-        this.setTrip(new ValhallaServer().generateRoute(OsmDataManager.getInstance().getActiveDataSet(), new LatLon(39.077652, -108.458828), new LatLon(39.067613, -108.560153)));
+        MainApplication.worker.execute(() -> this
+                .setTrip(new ValhallaServer().generateRoute(MainApplication.getLayerManager().getActiveDataLayer(),
+                        new LatLon(39.077652, -108.458828), new LatLon(39.067613, -108.560153))));
     }
 }

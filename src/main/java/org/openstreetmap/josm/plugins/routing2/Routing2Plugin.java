@@ -1,3 +1,4 @@
+// License: GPL. For details, see LICENSE file.
 package org.openstreetmap.josm.plugins.routing2;
 
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import org.openstreetmap.josm.plugins.PluginInformation;
 
 public class Routing2Plugin extends Plugin {
     private final Collection<RoutingLayer> layers = new ArrayList<>();
+
     /**
      * Creates the plugin
      *

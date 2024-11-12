@@ -1,7 +1,7 @@
+// License: GPL. For details, see LICENSE file.
 package org.openstreetmap.josm.plugins.routing2.lib.generic;
 
 import java.util.Map;
-import java.util.Set;
 
 import org.openstreetmap.josm.data.coor.ILatLon;
 

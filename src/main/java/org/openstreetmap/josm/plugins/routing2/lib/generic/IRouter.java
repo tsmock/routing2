@@ -2,7 +2,7 @@
 package org.openstreetmap.josm.plugins.routing2.lib.generic;
 
 import org.openstreetmap.josm.data.coor.ILatLon;
-import org.openstreetmap.josm.data.osm.DataSet;
+import org.openstreetmap.josm.gui.layer.OsmDataLayer;
 
 /**
  * An interface for communicating with routers
@@ -10,8 +10,8 @@ import org.openstreetmap.josm.data.osm.DataSet;
 public interface IRouter {
     /**
      * Generate a route
-     * @param dataSet The dataset to use
+     * @param layer The layer to do routing on
      * @param locations The locations (at least two locations must be specified; the start and end points)
      */
-    Trip generateRoute(DataSet dataSet, ILatLon... locations);
+    Trip generateRoute(OsmDataLayer layer, ILatLon... locations);
 }
