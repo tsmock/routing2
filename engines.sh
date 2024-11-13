@@ -27,7 +27,7 @@ function prime_server() {
   ./autogen.sh
   ./configure
   make test -j8
-  sudo make install
+  #sudo make install
   cd ..
 }
 
@@ -37,26 +37,27 @@ function valhalla() {
   if [ ! -d "valhalla" ]; then git clone https://github.com/valhalla/valhalla.git; else git -C valhalla remote update; fi
   cd "valhalla" || exit 1
   git checkout master && git pull
-  git_latest_tag
+  git checkout 3.5.1
   npm install --ignore-scripts
   git submodule update --init --recursive
   if [ -d build ] ; then rm -rf build; fi
   mkdir build
   cd build || exit 1
-  cmake .. -DCMAKE_BUILD_TYPE=Release -DDENABLE_STATIC_LIBRARY_MODULES=On -DDENABLE_GDAL=OFF
+  cmake .. -DCMAKE_BUILD_TYPE=Release -DDENABLE_STATIC_LIBRARY_MODULES=On -DDENABLE_GDAL=OFF -DENABLE_SERVICES=OFF
   make -j"$(nproc)"
-  sudo make install
+  make package
+  #sudo make install
   cd ../../../
 
   mkdir -p valhalla_tiles
-  valhalla_build_config --mjolnir-tile-dir $(pwd)/valhalla_tiles --mjolnir-tile-extract $(pwd)/valhalla_tiles.tar --mjolnir-timezone $(pwd)/valhalla_tiles/timezones.sqlite --mjolnir-admin $(pwd)/valhalla_tiles/admins.sqlite > valhalla.json
-  valhalla_build_timezones > valhalla_tiles/timezones.sqlite
-  valhalla_build_admins -c valhalla.json ~/Downloads/colorado-latest.osm.pbf
-  valhalla_build_tiles -c valhalla.json ~/Downloads/colorado-latest.osm.pbf
-  valhalla_build_extract -c valhalla.json -v --overwrite
+  ./engines/valhalla/build/valhalla_build_config --mjolnir-tile-dir $(pwd)/valhalla_tiles --mjolnir-tile-extract $(pwd)/valhalla_tiles.tar --mjolnir-timezone $(pwd)/valhalla_tiles/timezones.sqlite --mjolnir-admin $(pwd)/valhalla_tiles/admins.sqlite > valhalla.json
+  ./engines/valhalla/build/valhalla_build_timezones > valhalla_tiles/timezones.sqlite
+  ./engines/valhalla/build/valhalla_build_admins -c valhalla.json ~/Downloads/colorado-latest.osm.pbf
+  ./engines/valhalla/build/valhalla_build_tiles -c valhalla.json ~/Downloads/colorado-latest.osm.pbf
+  ./engines/valhalla/build/valhalla_build_extract -c valhalla.json -v --overwrite
   # Test install
-  valhalla_run_route --config valhalla.json --json '{"locations": [{"lat":39.0776524, "lon":-108.4588285}, {"lat":39.0676135, "lon":-108.5601538}], "costing":"auto","directions_options":{"units":"miles"}}' --verbose-lanes
-  valhalla_service valhalla.json route '{"locations": [{"lat":39.0776524, "lon":-108.4588285}, {"lat":39.0676135, "lon":-108.5601538}], "costing":"auto","directions_options":{"units":"miles"}}'
+  ./engines/valhalla/build/valhalla_run_route --config valhalla.json --json '{"locations": [{"lat":39.0776524, "lon":-108.4588285}, {"lat":39.0676135, "lon":-108.5601538}], "costing":"auto","directions_options":{"units":"miles"}}' --verbose-lanes
+  ./engines/valhalla/build/valhalla_service valhalla.json route '{"locations": [{"lat":39.0776524, "lon":-108.4588285}, {"lat":39.0676135, "lon":-108.5601538}], "costing":"auto","directions_options":{"units":"miles"}}'
 
   # Note: future versions of jextract *may* be able to take multiple header files. TODO change trailing \; to \+
   # Important file is tyr/actor.h anyway.

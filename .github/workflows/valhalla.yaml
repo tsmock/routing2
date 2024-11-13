@@ -1,0 +1,109 @@
+on:
+  push:
+  workflow_call:
+
+jobs:
+  build_macosx_arm:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: valhalla/valhalla
+          ref: 3.5.1
+          submodules: 'recursive'
+      - uses: actions/checkout@v4
+        with:
+          repository: microsoft/vcpkg
+          ref: 2024.10.21
+          path: vcpkg
+      - run: |
+          brew install automake cmake libtool protobuf-c libspatialite pkg-config sqlite3 jq curl wget czmq lz4 spatialite-tools unzip luajit boost bash coreutils binutils
+          ./vcpkg/bootstrap-vcpkg.sh
+          echo "set(VCPKG_BUILD_TYPE release)" >> vcpkg/triplets/arm64-osx.cmake
+          npm install --ignore-scripts
+          mkdir build
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DDENABLE_STATIC_LIBRARY_MODULES=On -DDENABLE_GDAL=OFF -DENABLE_SERVICES=OFF
+          cmake --build build -- -j"$(nproc)"
+          cmake --build build -- package
+      - name: Upload mac build
+        id: upload-mac-build
+        uses: actions/upload-artifact@v4
+        with:
+          name: macosx-build-valhalla-arm
+          path: |
+            build/valhalla-3.5.1-Darwin.tar.gz
+
+  build_macosx_x86:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: valhalla/valhalla
+          ref: 3.5.1
+          submodules: 'recursive'
+      - uses: actions/checkout@v4
+        with:
+          repository: microsoft/vcpkg
+          ref: 2024.10.21
+          path: vcpkg
+      - run: |
+          # Note: If something breaks, check to see if macos-13 is no longer x86 only.
+          brew install automake cmake libtool protobuf-c libspatialite pkg-config sqlite3 jq curl wget czmq lz4 spatialite-tools unzip luajit boost bash coreutils binutils
+          ./vcpkg/bootstrap-vcpkg.sh
+          echo "set(VCPKG_BUILD_TYPE release)" >> vcpkg/triplets/x86-osx.cmake
+          npm install --ignore-scripts
+          mkdir build
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DDENABLE_STATIC_LIBRARY_MODULES=On -DDENABLE_GDAL=OFF -DENABLE_SERVICES=OFF
+          cmake --build build -- -j"$(nproc)"
+          cmake --build build -- package
+      - name: Upload mac build
+        id: upload-mac-build
+        uses: actions/upload-artifact@v4
+        with:
+          name: macosx-build-valhalla-x86
+          path: |
+            build/valhalla-3.5.1-Darwin.tar.gz
+
+  combine_macos:
+    runs-on: macos-latest
+    needs: [build_macosx_arm, build_macosx_x86]
+    steps:
+      - name: Get macos arm build
+        uses: actions/download-artifact@v4
+        with:
+          name: macosx-build-valhalla-arm
+      - run: |
+          mkdir arm64
+          tar -xf valhalla-3.5.1-Darwin.tar.gz -C arm64
+          rm valhalla-3.5.1-Darwin.tar.gz
+      - name: Get macos x64 build
+        uses: actions/download-artifact@v4
+        with:
+          name: macosx-build-valhalla-x86
+      - run: |
+          mkdir x86
+          tar -xf valhalla-3.5.1-Darwin.tar.gz -C x86
+          rm valhalla-3.5.1-Darwin.tar.gz
+          # Now create the fat files
+          mkdir fat
+          function makefat() {
+            set -ex
+            echo "${1}"
+            echo "${@}"
+            file="${1#x86/}"
+            file="${file#arm64/}"
+            if [ -f "${1}" ]; then mkdir -p "fat/${file%/*}"; fi
+            # Account for platform specific resource files
+            cp "${1}" "fat/${file}"
+            lipo -create -output "fat/${file}" "x86/${file}" "arm64/${file}"
+          }
+          export -f makefat
+          find x86 -type f -exec bash -c 'makefat "${0}"' {} \;
+          tar -cf valhalla-3.5.1-Darwin.tar.gz -C fat .
+      - name: Upload mac build
+        id: upload-mac-build
+        uses: actions/upload-artifact@v4
+        with:
+          name: macosx-build-valhalla-fat
+          path: |
+            valhalla-3.5.1-Darwin.tar.gz
