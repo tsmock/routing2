@@ -85,6 +85,9 @@ public final class ValhallaServer implements IRouter {
         }
         // check if error
         if (data.containsKey("status_code") && 200 != data.getInt("status_code")) {
+            if (data.getInt("error_code") == 442) {
+                return null; // No route found // FIXME: Throw RouteException with message?
+            } // FIXME: Look through https://valhalla.github.io/valhalla/api/turn-by-turn/api-reference/#http-status-codes-and-conditions for other "valid" problems.
             throw new JosmRuntimeException(data.toString());
         }
         final JsonObject trip = data.getJsonObject("trip");
@@ -196,6 +199,7 @@ public final class ValhallaServer implements IRouter {
     }
 
     private void generateAdmins(Path config, Path input) {
+        // FIXME: This needs to have full boundary information
         try (InputStream is = runCommand(getPath("valhalla_build_admins"), "--config", config.toString(),
                 input.toString())) {
             printStdOut(is);

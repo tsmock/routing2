@@ -12,7 +12,7 @@
     <artifactId>routing2</artifactId>
 
     <properties>
-        <java.lang.version>22</java.lang.version>
+        <java.lang.version>21</java.lang.version>
         <maven.compiler.source>${java.lang.version}</maven.compiler.source>
         <maven.compiler.target>${java.lang.version}</maven.compiler.target>
         <maven.compiler.release>${java.lang.version}</maven.compiler.release>

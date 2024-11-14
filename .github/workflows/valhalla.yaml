@@ -119,11 +119,15 @@ jobs:
           }
           export -f makefat
           find x86 -type f -exec bash -c 'makefat "${0}"' {} \;
-          tar -cf valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz -C fat/valhalla-${{ inputs.valhalla_ref }}-Darwin .
+          tar -czf valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz -C fat/valhalla-${{ inputs.valhalla_ref }}-Darwin .
+          tag=$(gh release list --repo ${{ github.repository }} --json 'tagName,isLatest' --jq '.[] | select(.isLatest)|.tagName')
+          if [ ! -z "${tag}" ]; then gh release upload --repo ${{ github.repository }} ${tag} valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Upload mac build
         id: upload-mac-build
         uses: actions/upload-artifact@v4
         with:
           name: macosx-build-valhalla-fat
           path: |
-            valhalla-3.5.1-Darwin.tar.gz
+            valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz

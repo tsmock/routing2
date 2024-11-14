@@ -1,0 +1,36 @@
+name: Java CI
+
+on:
+  push:
+    branches:
+      - master
+      - $default-branch
+      - $protected-branches
+  pull_request:
+    branches:
+      - master
+      - $default-branch
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  attestations: write
+  contents: write
+  packages: write
+
+jobs:
+  call-workflow:
+    strategy:
+      matrix:
+        josm-revision: ["", "r19067"]
+    uses: JOSM/JOSMPluginAction/.github/workflows/ant.yml@v3
+    with:
+      java-version: 22
+      josm-revision: ${{ matrix.josm-revision }}
+      perform-revision-tagging: ${{ matrix.josm-revision == 'r19067' && github.repository == 'tsmock/routing2' && github.ref_type == 'branch' && github.ref_name == 'master' && github.event_name != 'schedule' && github.event_name != 'pull_request' }}
+    secrets: inherit
+  build-valhalla:
+    needs: call-workflow
+    uses: ./.github/workflows/valhalla.yaml
+    secrets: inherit
+

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project name="routing2" default="dist" basedir=".">
+  <property name="plugin.src.dir" value="src/main/java"/>
+  <property name="plugin.test.dir" value="src/test/java"/>
+  <property name="plugin.resources.dir" value="src/main/resources"/>
+
+  <!-- edit the properties of this plugin in the file `gradle.properties` -->
+  <property name="plugin.class" value="org.openstreetmap.josm.plugins.routing2.Routing2Plugin"/>
+  <property name="plugin.requires" value="apache-commons;pbf" />
+  <property name="plugin.canloadatruntime" value="true" />
+  <property name="plugin.author" value="Taylor Smock" />
+  <property name="java.lang.version" value="21"/>
+  <property name="plugin.minimum.java.version" value="21"/>
+
+  <!-- ** include targets that all plugins have in common ** -->
+  <import file="../build-common.xml"/>
+
+  <!-- Override the `setup-dist-default` task from build-common.xml -->
+  <target name="setup-dist-default">
+    <copy todir="${plugin.build.dir}" failonerror="no" includeemptydirs="no">
+      <fileset dir="${plugin.resources.dir}"/>
+    </copy>
+    <copy todir="${plugin.build.dir}">
+      <fileset dir=".">
+        <include name="README"/>
+        <include name="LICENSE*"/>
+        <include name="*GPL*"/>
+        <include name="*.md"/>
+      </fileset>
+    </copy>
+  </target>
+
+  <fileset id="plugin.requires.jars" dir="${plugin.dist.dir}">
+    <include name="apache-commons.jar"/>
+    <include name="pbf.jar"/>
+  </fileset>
+</project>
