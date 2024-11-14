@@ -111,11 +111,11 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
                         drawShape.lineTo(p.getX(), p.getY());
                     }
                 }
-                g.setColor(Color.GREEN);
+                g.setColor(new Color(0, 255, 0, 64));
                 g.setStroke(new BasicStroke(10));
                 g.draw(drawShape);
                 g.setStroke(new BasicStroke(5));
-                g.setColor(Color.RED);
+                g.setColor(new Color(255, 0, 0, 96));
                 g.draw(maneuverShape);
             }
             if (current.locations() != null) {
@@ -135,6 +135,7 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
     public void setTrip(Trip newTrip) {
         this.trip = newTrip;
         this.tripConsumers.fireEvent(c -> c.accept(newTrip));
+        this.invalidate();
     }
 
     /**
@@ -170,7 +171,7 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
      * @param maneuver The maneuver to highlight
      */
     public void setHighlightedManeuver(Maneuver maneuver) {
-        if (maneuver != null
+        if (this.trip != null && maneuver != null
                 && Stream.of(this.trip.legs()).flatMap(l -> Arrays.stream(l.maneuvers())).anyMatch(maneuver::equals)) {
             this.maneuver = maneuver;
             this.invalidate();

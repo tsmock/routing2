@@ -153,6 +153,7 @@ public final class ValhallaServer implements IRouter {
                             }
                         }
                     }
+                    break;
                 } else {
                     try (OutputStream fos = Files.newOutputStream(dir.resolve(zipEntry.getName()))) {
                         int len;
