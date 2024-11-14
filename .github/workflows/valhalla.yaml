@@ -1,6 +1,11 @@
 on:
-  push:
   workflow_call:
+    inputs:
+      valhalla_ref:
+        type: string
+        default: 3.5.1
+        description: The valhalla version to build
+        required: false
 
 jobs:
   build_macosx_arm:
@@ -9,14 +14,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: valhalla/valhalla
-          ref: 3.5.1
+          ref: ${{ inputs.valhalla_ref }}
           submodules: 'recursive'
       - uses: actions/checkout@v4
         with:
           repository: microsoft/vcpkg
           ref: 2024.10.21
           path: vcpkg
-      - run: |
+      - name: Cache build
+        id: build-cache
+        uses: actions/cache@v4
+        with:
+          path: build/valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz
+          key: ${{ runner.os }}-valhalla-${{ inputs.valhalla_ref }}
+      - name: Build valhalla
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: |
           brew install automake cmake libtool protobuf-c libspatialite pkg-config sqlite3 jq curl wget czmq lz4 spatialite-tools unzip luajit boost bash coreutils binutils
           ./vcpkg/bootstrap-vcpkg.sh
           echo "set(VCPKG_BUILD_TYPE release)" >> vcpkg/triplets/arm64-osx.cmake
@@ -31,7 +44,7 @@ jobs:
         with:
           name: macosx-build-valhalla-arm
           path: |
-            build/valhalla-3.5.1-Darwin.tar.gz
+            build/valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz
 
   build_macosx_x86:
     runs-on: macos-13
@@ -39,14 +52,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: valhalla/valhalla
-          ref: 3.5.1
+          ref: ${{ inputs.valhalla_ref }}
           submodules: 'recursive'
       - uses: actions/checkout@v4
         with:
           repository: microsoft/vcpkg
           ref: 2024.10.21
           path: vcpkg
-      - run: |
+      - name: Cache build
+        id: build-cache
+        uses: actions/cache@v4
+        with:
+          path: build/valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz
+          key: ${{ runner.os }}-valhalla-${{ inputs.valhalla_ref }}
+      - name: Build valhalla
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: |
           # Note: If something breaks, check to see if macos-13 is no longer x86 only.
           brew install automake cmake libtool protobuf-c libspatialite pkg-config sqlite3 jq curl wget czmq lz4 spatialite-tools unzip luajit boost bash coreutils binutils
           ./vcpkg/bootstrap-vcpkg.sh
@@ -62,7 +83,7 @@ jobs:
         with:
           name: macosx-build-valhalla-x86
           path: |
-            build/valhalla-3.5.1-Darwin.tar.gz
+            build/valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz
 
   combine_macos:
     runs-on: macos-latest
@@ -74,16 +95,16 @@ jobs:
           name: macosx-build-valhalla-arm
       - run: |
           mkdir arm64
-          tar -xf valhalla-3.5.1-Darwin.tar.gz -C arm64
-          rm valhalla-3.5.1-Darwin.tar.gz
+          tar -xf valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz -C arm64
+          rm valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz
       - name: Get macos x64 build
         uses: actions/download-artifact@v4
         with:
           name: macosx-build-valhalla-x86
       - run: |
           mkdir x86
-          tar -xf valhalla-3.5.1-Darwin.tar.gz -C x86
-          rm valhalla-3.5.1-Darwin.tar.gz
+          tar -xf valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz -C x86
+          rm valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz
           # Now create the fat files
           mkdir fat
           function makefat() {
@@ -98,7 +119,7 @@ jobs:
           }
           export -f makefat
           find x86 -type f -exec bash -c 'makefat "${0}"' {} \;
-          tar -cf valhalla-3.5.1-Darwin.tar.gz -C fat .
+          tar -cf valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz -C fat/valhalla-${{ inputs.valhalla_ref }}-Darwin .
       - name: Upload mac build
         id: upload-mac-build
         uses: actions/upload-artifact@v4
