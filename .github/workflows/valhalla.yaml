@@ -87,7 +87,6 @@ jobs:
           # Now create the fat files
           mkdir fat
           function makefat() {
-            set -ex
             echo "${1}"
             echo "${@}"
             file="${1#x86/}"

@@ -2,16 +2,21 @@
 package org.openstreetmap.josm.plugins.routing2.lib.valhalla;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.openstreetmap.josm.data.coor.ILatLon;
 import org.openstreetmap.josm.gui.layer.OsmDataLayer;
 import org.openstreetmap.josm.plugins.pbf.io.PbfExporter;
@@ -31,6 +36,7 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonReader;
 import jakarta.json.JsonValue;
+import org.openstreetmap.josm.tools.PlatformManager;
 
 /**
  * Make calls to a local install of Valhalla
@@ -42,8 +48,8 @@ public final class ValhallaServer implements IRouter {
         final Path config = generateConfig();
         final Path dataPath = writeDataSet(layer);
         try {
-            if (!Files.isDirectory(getDataDir().resolve("valhalla_tiles"))) {
-                Files.createDirectory(getDataDir().resolve("valhalla_tiles"));
+            if (!Files.isDirectory(getCacheDir().resolve("valhalla_tiles"))) {
+                Files.createDirectory(getCacheDir().resolve("valhalla_tiles"));
             }
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
@@ -61,9 +67,9 @@ public final class ValhallaServer implements IRouter {
         builder.add("locations", locationsArray);
         Process p;
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder("valhalla_service", // TODO autodetect
-                    config.toString(), "route", builder.build().toString());
-            processBuilder.directory(new File("/Users/tsmock/workspace/josm/plugins/routing2")); // FIXME remove
+            ProcessBuilder processBuilder = new ProcessBuilder(getPath("valhalla_service"), config.toString(), "route",
+                    builder.build().toString());
+            processBuilder.directory(getCacheDir().toFile()); // FIXME remove
             p = processBuilder.start();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -89,7 +95,7 @@ public final class ValhallaServer implements IRouter {
         return new Trip(locations1, legs, summary);
     }
 
-    private Path getDataDir() throws IOException {
+    private Path getCacheDir() throws IOException {
         final Path dir = Config.getDirs().getUserDataDirectory(true).toPath().resolve("routing2");
         if (!Files.isDirectory(dir)) {
             Files.createDirectory(dir);
@@ -97,12 +103,74 @@ public final class ValhallaServer implements IRouter {
         return dir;
     }
 
+    private String getPath(String binary) throws IOException {
+        final Path dir = getCacheDir().resolve("bin").resolve("valhalla");
+        if (!Files.isDirectory(dir)) {
+            Files.createDirectories(dir);
+        }
+        final Path binDir = dir.resolve("bin");
+        final Path binaryPath = binDir.resolve(binary);
+        if (!Files.isDirectory(binDir) && !Files.isExecutable(binaryPath)) {
+            if (PlatformManager.isPlatformOsx()) {
+                extractBinariesMacOS(dir);
+            } else {
+                throw new UnsupportedOperationException("Your platform is not currently supported"); // FIXME: Add other platforms
+            }
+        }
+        return binaryPath.toString();
+    }
+
+    private static void extractBinariesMacOS(Path dir) throws IOException {
+        Objects.requireNonNull(dir);
+        // FIXME: Don't hardcode location
+        try (InputStream fis = Files.newInputStream(Paths.get("/Users/tsmock/Downloads/macosx-build-valhalla-fat.zip"));
+                ZipInputStream zis = new ZipInputStream(fis)) {
+            ZipEntry zipEntry;
+            byte[] bytes = new byte[1024];
+            while ((zipEntry = zis.getNextEntry()) != null) {
+                if (zipEntry.isDirectory()) {
+                    Files.createDirectories(dir.resolve(zipEntry.getName()));
+                } else if (zipEntry.getName().endsWith(".tar.gz")) {
+                    try (TarArchiveInputStream tais = new TarArchiveInputStream(zis)) {
+                        TarArchiveEntry tarArchiveEntry;
+                        while ((tarArchiveEntry = tais.getNextEntry()) != null) {
+                            Path saveLocation = dir.resolve(
+                                    tarArchiveEntry.getName().replaceFirst("^\\./valhalla-[0-9.]*-Darwin/", ""));
+                            if (tarArchiveEntry.isDirectory()) {
+                                if (!Files.isDirectory(saveLocation)) {
+                                    Files.createDirectories(saveLocation);
+                                }
+                            } else {
+                                try (OutputStream fos = Files.newOutputStream(saveLocation)) {
+                                    int len;
+                                    while ((len = tais.read(bytes)) > 0) {
+                                        fos.write(bytes, 0, len);
+                                    }
+                                }
+                                if (saveLocation.getParent().endsWith("bin") && !Files.isExecutable(saveLocation)) {
+                                    saveLocation.toFile().setExecutable(true, true);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    try (OutputStream fos = Files.newOutputStream(dir.resolve(zipEntry.getName()))) {
+                        int len;
+                        while ((len = zis.read(bytes)) > 0) {
+                            fos.write(bytes, 0, len);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private Path generateConfig() {
         try {
-            final Path dataDir = getDataDir();
+            final Path dataDir = getCacheDir();
             final Path config = dataDir.resolve("valhalla.json").toAbsolutePath();
             if (!Files.exists(config)) {
-                try (InputStream is = runCommand("valhalla_build_config", "--mjolnir-tile-dir",
+                try (InputStream is = runCommand(getPath("valhalla_build_config"), "--mjolnir-tile-dir",
                         dataDir.resolve("valhalla_tiles").toString(), "--mjolnir-tile-extract",
                         dataDir.resolve("valhalla_tiles.tar").toString(), "--mjolnir-timezone",
                         dataDir.resolve("valhalla_tiles").resolve("timezones.sqlite").toString(), "--mjolnir-admin",
@@ -118,7 +186,7 @@ public final class ValhallaServer implements IRouter {
 
     private void generateTimezones(Path output) {
         if (!Files.exists(output)) {
-            try (InputStream is = runCommand("valhalla_build_timezones")) {
+            try (InputStream is = runCommand(getPath("valhalla_build_timezones"))) {
                 Files.copy(is, output);
             } catch (IOException ioException) {
                 throw new UncheckedIOException(ioException);
@@ -127,7 +195,8 @@ public final class ValhallaServer implements IRouter {
     }
 
     private void generateAdmins(Path config, Path input) {
-        try (InputStream is = runCommand("valhalla_build_admins", "--config", config.toString(), input.toString())) {
+        try (InputStream is = runCommand(getPath("valhalla_build_admins"), "--config", config.toString(),
+                input.toString())) {
             printStdOut(is);
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
@@ -135,7 +204,8 @@ public final class ValhallaServer implements IRouter {
     }
 
     private void generateTiles(Path config, Path input) {
-        try (InputStream is = runCommand("valhalla_build_tiles", "--config", config.toString(), input.toString())) {
+        try (InputStream is = runCommand(getPath("valhalla_build_tiles"), "--config", config.toString(),
+                input.toString())) {
             printStdOut(is);
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
@@ -143,7 +213,7 @@ public final class ValhallaServer implements IRouter {
     }
 
     private void generateExtract(Path config) {
-        try (InputStream is = runCommand("valhalla_build_extract", "--config", config.toString(), "-v",
+        try (InputStream is = runCommand(getPath("valhalla_build_extract"), "--config", config.toString(), "-v",
                 "--overwrite")) {
             printStdOut(is);
         } catch (IOException ioException) {
@@ -197,8 +267,9 @@ public final class ValhallaServer implements IRouter {
 
     private Path writeDataSet(OsmDataLayer layer) {
         try {
-            Path saveLocation = getDataDir().resolve(layer.getName() + ".pbf");
+            Path saveLocation = getCacheDir().resolve(layer.getName() + ".pbf");
             new PbfExporter().exportData(saveLocation.toFile(), layer);
+            saveLocation.toFile().deleteOnExit(); // Not perfect, but should reduce amount of space used long-term.
             return saveLocation;
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
