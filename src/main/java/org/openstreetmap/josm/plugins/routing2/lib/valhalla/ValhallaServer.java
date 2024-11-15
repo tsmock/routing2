@@ -7,19 +7,20 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ForkJoinPool;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.GZIPInputStream;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.openstreetmap.josm.data.coor.ILatLon;
 import org.openstreetmap.josm.gui.layer.OsmDataLayer;
 import org.openstreetmap.josm.plugins.pbf.io.PbfExporter;
+import org.openstreetmap.josm.plugins.routing2.Routing2Plugin;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.GooglePolyline;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.IRouter;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Legs;
@@ -27,6 +28,7 @@ import org.openstreetmap.josm.plugins.routing2.lib.generic.Locations;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Maneuver;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Trip;
 import org.openstreetmap.josm.spi.preferences.Config;
+import org.openstreetmap.josm.tools.HttpClient;
 import org.openstreetmap.josm.tools.JosmRuntimeException;
 import org.openstreetmap.josm.tools.Logging;
 
@@ -42,6 +44,7 @@ import org.openstreetmap.josm.tools.PlatformManager;
  * Make calls to a local install of Valhalla
  */
 public final class ValhallaServer implements IRouter {
+    private static final String valhallaVersion = "3.5.1";
 
     @Override
     public Trip generateRoute(OsmDataLayer layer, ILatLon... locations) {
@@ -125,47 +128,51 @@ public final class ValhallaServer implements IRouter {
 
     private static void extractBinariesMacOS(Path dir) throws IOException {
         Objects.requireNonNull(dir);
-        // FIXME: Don't hardcode location
-        try (InputStream fis = Files.newInputStream(Paths.get("/Users/tsmock/Downloads/macosx-build-valhalla-fat.zip"));
-                ZipInputStream zis = new ZipInputStream(fis)) {
-            ZipEntry zipEntry;
-            byte[] bytes = new byte[1024];
-            while ((zipEntry = zis.getNextEntry()) != null) {
-                if (zipEntry.isDirectory()) {
-                    Files.createDirectories(dir.resolve(zipEntry.getName()));
-                } else if (zipEntry.getName().endsWith(".tar.gz")) {
-                    try (TarArchiveInputStream tais = new TarArchiveInputStream(zis)) {
-                        TarArchiveEntry tarArchiveEntry;
-                        while ((tarArchiveEntry = tais.getNextEntry()) != null) {
-                            Path saveLocation = dir.resolve(
-                                    tarArchiveEntry.getName().replaceFirst("^\\./valhalla-[0-9.]*-Darwin/", ""));
-                            if (tarArchiveEntry.isDirectory()) {
-                                if (!Files.isDirectory(saveLocation)) {
-                                    Files.createDirectories(saveLocation);
-                                }
-                            } else {
-                                try (OutputStream fos = Files.newOutputStream(saveLocation)) {
-                                    int len;
-                                    while ((len = tais.read(bytes)) > 0) {
-                                        fos.write(bytes, 0, len);
-                                    }
-                                }
-                                if (saveLocation.getParent().endsWith("bin") && !Files.isExecutable(saveLocation)) {
-                                    saveLocation.toFile().setExecutable(true, true);
-                                }
+        final String version = Optional.ofNullable(Routing2Plugin.getInfo().version).orElse("SNAPSHOT");
+        final String linkStart = Optional.ofNullable(Routing2Plugin.getInfo().link)
+                .orElse("https://github.com/tsmock/routing2");
+        final URI downloadLocation;
+        if ("latest".equals(version) || "SNAPSHOT".equals(version)) {
+            downloadLocation = URI
+                    .create(linkStart + "/releases/latest/download/valhalla-" + valhallaVersion + "-Darwin.tar.gz");
+        } else {
+            downloadLocation = URI.create(
+                    linkStart + "/releases/download/v" + version + "/valhalla-" + valhallaVersion + "-Darwin.tar.gz");
+        }
+        HttpClient client = HttpClient.create(downloadLocation.toURL());
+        try {
+            HttpClient.Response response = client.connect();
+            if (response.getResponseCode() != 200) {
+                Logging.error(response.fetchContent());
+                throw new IllegalStateException("Valhalla server download location returned HTTP error code "
+                        + response.getResponseCode() + ": " + response.getResponseMessage());
+            }
+            try (InputStream is = response.getContent();
+                    InputStream gis = new GZIPInputStream(is);
+                    TarArchiveInputStream tais = new TarArchiveInputStream(gis)) {
+                byte[] bytes = new byte[1024];
+                TarArchiveEntry tarArchiveEntry;
+                while ((tarArchiveEntry = tais.getNextEntry()) != null) {
+                    Path saveLocation = dir.resolve(tarArchiveEntry.getName());
+                    if (tarArchiveEntry.isDirectory()) {
+                        if (!Files.isDirectory(saveLocation)) {
+                            Files.createDirectories(saveLocation);
+                        }
+                    } else {
+                        try (OutputStream fos = Files.newOutputStream(saveLocation)) {
+                            int len;
+                            while ((len = tais.read(bytes)) > 0) {
+                                fos.write(bytes, 0, len);
                             }
                         }
-                    }
-                    break;
-                } else {
-                    try (OutputStream fos = Files.newOutputStream(dir.resolve(zipEntry.getName()))) {
-                        int len;
-                        while ((len = zis.read(bytes)) > 0) {
-                            fos.write(bytes, 0, len);
+                        if (saveLocation.getParent().endsWith("bin") && !Files.isExecutable(saveLocation)) {
+                            saveLocation.toFile().setExecutable(true, true);
                         }
                     }
                 }
             }
+        } finally {
+            client.disconnect();
         }
     }
 

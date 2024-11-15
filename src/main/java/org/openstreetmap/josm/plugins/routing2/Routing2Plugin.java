@@ -11,6 +11,8 @@ import org.openstreetmap.josm.plugins.PluginInformation;
 import org.openstreetmap.josm.tools.Destroyable;
 
 public class Routing2Plugin extends Plugin implements Destroyable {
+    private static PluginInformation pluginInformation;
+
     /**
      * Creates the plugin
      *
@@ -18,6 +20,7 @@ public class Routing2Plugin extends Plugin implements Destroyable {
      */
     public Routing2Plugin(PluginInformation info) {
         super(info);
+        pluginInformation = info;
     }
 
     @Override
@@ -33,5 +36,13 @@ public class Routing2Plugin extends Plugin implements Destroyable {
         final List<RoutingLayer> layerList = new ArrayList<>(
                 MainApplication.getLayerManager().getLayersOfType(RoutingLayer.class));
         layerList.forEach(MainApplication.getLayerManager()::removeLayer);
+    }
+
+    /**
+     * Get the information for the plugin
+     * @return The plugin information
+     */
+    public static PluginInformation getInfo() {
+        return pluginInformation;
     }
 }

@@ -112,13 +112,16 @@ jobs:
             echo "${@}"
             file="${1#x86/}"
             file="${file#arm64/}"
-            if [ -f "${1}" ]; then mkdir -p "fat/${file%/*}"; fi
-            # Account for platform specific resource files
-            cp "${1}" "fat/${file}"
-            lipo -create -output "fat/${file}" "x86/${file}" "arm64/${file}"
+            if [ -f "${1}" ]; then
+              mkdir -p "fat/${file%/*}"
+              # Account for platform specific resource files
+              cp "${1}" "fat/${file}"
+              lipo -create -output "fat/${file}" "x86/${file}" "arm64/${file}"
+            fi
           }
           export -f makefat
           find x86 -type f -exec bash -c 'makefat "${0}"' {} \;
+          find arm64 -type f -exec bash -c 'makefat "${0}"' {} \;
           tar -czf valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz -C fat/valhalla-${{ inputs.valhalla_ref }}-Darwin .
           tag=$(gh release list --repo ${{ github.repository }} --json 'tagName,isLatest' --jq '.[] | select(.isLatest)|.tagName')
           if [ ! -z "${tag}" ]; then gh release upload --repo ${{ github.repository }} ${tag} valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz; fi
