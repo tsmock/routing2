@@ -30,7 +30,14 @@ jobs:
       perform-revision-tagging: ${{ matrix.josm-revision == 'r19067' && github.repository == 'tsmock/routing2' && github.ref_type == 'branch' && github.ref_name == 'master' && github.event_name != 'schedule' && github.event_name != 'pull_request' }}
     secrets: inherit
   build-valhalla:
-    needs: call-workflow
     uses: ./.github/workflows/valhalla.yaml
-    secrets: inherit
-
+  upload-valhalla:
+    runs-on: ubuntu-latest
+    needs: [build-valhalla, call-workflow]
+    if: needs.call-workflow.outputs.tag
+    steps:
+      - name: Get macos build
+        uses: actions/download-artifact@v4
+        with:
+          name: macosx-build-valhalla-fat
+      - run: gh release upload --repo ${{ github.repository }} ${{ needs.call-workflow.outputs.tag }} valhalla-*-Darwin.tar.gz
