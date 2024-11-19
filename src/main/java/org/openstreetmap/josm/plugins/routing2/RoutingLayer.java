@@ -48,6 +48,7 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
         this.start = start;
         this.end = end;
         this.commandChanged(0, 0);
+        this.setOpacity(.5);
     }
 
     @Override
@@ -111,11 +112,11 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
                         drawShape.lineTo(p.getX(), p.getY());
                     }
                 }
-                g.setColor(new Color(0, 255, 0, 64));
+                g.setColor(Color.GREEN);
                 g.setStroke(new BasicStroke(10));
                 g.draw(drawShape);
                 g.setStroke(new BasicStroke(5));
-                g.setColor(new Color(255, 0, 0, 96));
+                g.setColor(Color.RED);
                 g.draw(maneuverShape);
             }
             if (current.locations() != null) {
