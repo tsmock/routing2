@@ -35,9 +35,21 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-valhalla, call-workflow]
     if: needs.call-workflow.outputs.tag
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Get macos build
         uses: actions/download-artifact@v4
         with:
-          name: macosx-build-valhalla-fat
+          name: macOS-build-valhalla-fat
       - run: gh release upload --repo ${{ github.repository }} ${{ needs.call-workflow.outputs.tag }} valhalla-*-Darwin.tar.gz
+      - name: Get linux build
+        uses: actions/download-artifact@v4
+        with:
+          name: Linux-build-valhalla-X64
+      - run: gh release upload --repo ${{ github.repository }} ${{ needs.call-workflow.outputs.tag }} valhalla-*-Linux.tar.gz
+      - name: Get Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: Windows-build-valhalla-X64
+      - run: gh release upload --repo ${{ github.repository }} ${{ needs.call-workflow.outputs.tag }} valhalla-*-Windows.tar.gz
