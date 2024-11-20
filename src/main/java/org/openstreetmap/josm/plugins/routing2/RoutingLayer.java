@@ -1,6 +1,8 @@
 // License: GPL. For details, see LICENSE file.
 package org.openstreetmap.josm.plugins.routing2;
 
+import static org.openstreetmap.josm.tools.I18n.tr;
+
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -21,11 +23,14 @@ import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapView;
 import org.openstreetmap.josm.gui.layer.Layer;
+import org.openstreetmap.josm.gui.progress.swing.PleaseWaitProgressMonitor;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Legs;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Locations;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Maneuver;
+import org.openstreetmap.josm.plugins.routing2.lib.generic.SetupException;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Trip;
 import org.openstreetmap.josm.plugins.routing2.lib.valhalla.ValhallaServer;
+import org.openstreetmap.josm.tools.JosmRuntimeException;
 import org.openstreetmap.josm.tools.ListenerList;
 
 public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueListener {
@@ -157,8 +162,25 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
 
     @Override
     public void commandChanged(int queueSize, int redoSize) {
-        MainApplication.worker.execute(() -> this.setTrip(new ValhallaServer()
-                .generateRoute(MainApplication.getLayerManager().getActiveDataLayer(), this.start, this.end)));
+        MainApplication.worker.execute(() -> {
+            ValhallaServer valhallaServer = new ValhallaServer();
+            final PleaseWaitProgressMonitor monitor = new PleaseWaitProgressMonitor(
+                    tr("Downloading configured router"));
+            if (valhallaServer.shouldPerformSetup()) {
+                try {
+                    monitor.beginTask(tr("Download"), 1);
+                    valhallaServer.performSetup(monitor);
+                } catch (SetupException setupException) {
+                    throw new JosmRuntimeException(setupException);
+                } finally {
+                    monitor.close();
+                }
+            }
+            if (!monitor.isCanceled()) {
+                this.setTrip(valhallaServer.generateRoute(MainApplication.getLayerManager().getActiveDataLayer(),
+                        this.start, this.end));
+            }
+        });
     }
 
     @Override

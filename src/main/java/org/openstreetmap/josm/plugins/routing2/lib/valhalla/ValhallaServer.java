@@ -1,6 +1,8 @@
 // License: GPL. For details, see LICENSE file.
 package org.openstreetmap.josm.plugins.routing2.lib.valhalla;
 
+import static org.openstreetmap.josm.tools.I18n.tr;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,8 +10,11 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ForkJoinPool;
@@ -19,6 +24,8 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.openstreetmap.josm.data.coor.ILatLon;
 import org.openstreetmap.josm.gui.layer.OsmDataLayer;
+import org.openstreetmap.josm.gui.progress.ProgressMonitor;
+import org.openstreetmap.josm.io.ProgressInputStream;
 import org.openstreetmap.josm.plugins.pbf.io.PbfExporter;
 import org.openstreetmap.josm.plugins.routing2.Routing2Plugin;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.GooglePolyline;
@@ -26,6 +33,7 @@ import org.openstreetmap.josm.plugins.routing2.lib.generic.IRouter;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Legs;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Locations;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Maneuver;
+import org.openstreetmap.josm.plugins.routing2.lib.generic.SetupException;
 import org.openstreetmap.josm.plugins.routing2.lib.generic.Trip;
 import org.openstreetmap.josm.spi.preferences.Config;
 import org.openstreetmap.josm.tools.HttpClient;
@@ -45,6 +53,88 @@ import org.openstreetmap.josm.tools.PlatformManager;
  */
 public final class ValhallaServer implements IRouter {
     private static final String valhallaVersion = "3.5.1";
+
+    @Override
+    public boolean shouldPerformSetup() {
+        try {
+            final Path dir = getCacheDir().resolve("bin").resolve("valhalla");
+            if (!Files.isDirectory(dir)) {
+                return true;
+            }
+            final Path binDir = dir.resolve("bin");
+            final Path versionFile = dir.resolve("version");
+            if (!Files.isRegularFile(versionFile) || !valhallaVersion.equals(Files.readString(versionFile))) {
+                return true;
+            }
+            if (!Files.isDirectory(binDir)) {
+                return true;
+            }
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
+        }
+        return false;
+    }
+
+    @Override
+    public void performSetup(ProgressMonitor progressMonitor) throws SetupException {
+        try {
+            realPerformSetup(progressMonitor);
+        } catch (IOException ioException) {
+            throw new SetupException(ioException);
+        }
+    }
+
+    /**
+     * Perform the actual setup steps in a synchronized block, to avoid downloading stuff multiple times
+     * @param updateable The object to use for progress updates
+     * @throws IOException If there is an issue performing setup
+     */
+    private static synchronized void realPerformSetup(ProgressMonitor updateable) throws IOException {
+        final Path dir = getCacheDir().resolve("bin").resolve("valhalla");
+        if (!Files.isDirectory(dir)) {
+            Files.createDirectories(dir);
+        }
+        final Path binDir = dir.resolve("bin");
+        final Path versionFile = dir.resolve("version");
+        if (!Files.isRegularFile(versionFile) || !valhallaVersion.equals(Files.readString(versionFile))) {
+            updateable.indeterminateSubTask(tr("Deleting old valhalla binaries"));
+            // Delete old binaries
+            Files.walkFileTree(dir, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (updateable.isCanceled()) {
+                        return FileVisitResult.TERMINATE;
+                    }
+                    Files.delete(file);
+                    updateable.worked(1);
+                    return super.visitFile(file, attrs);
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    if (updateable.isCanceled()) {
+                        return FileVisitResult.TERMINATE;
+                    }
+                    Files.delete(dir);
+                    updateable.worked(1);
+                    return super.postVisitDirectory(dir, exc);
+                }
+            });
+            Files.createDirectories(dir);
+        }
+        if (!Files.isDirectory(binDir)) {
+            updateable.subTask(tr("Downloading valhalla binaries"));
+            if (PlatformManager.isPlatformOsx()) {
+                extractBinariesMacOS(updateable, dir);
+            } else {
+                throw new UnsupportedOperationException("Your platform is not currently supported"); // FIXME: Add other platforms
+            }
+            // Do this last in case of cancellation
+            if (!updateable.isCanceled()) {
+                Files.writeString(versionFile, valhallaVersion);
+            }
+        }
+    }
 
     @Override
     public Trip generateRoute(OsmDataLayer layer, ILatLon... locations) {
@@ -101,7 +191,7 @@ public final class ValhallaServer implements IRouter {
         return new Trip(locations1, legs, summary);
     }
 
-    private Path getCacheDir() throws IOException {
+    private static Path getCacheDir() throws IOException {
         final Path dir = Config.getDirs().getUserDataDirectory(true).toPath().resolve("routing2");
         if (!Files.isDirectory(dir)) {
             Files.createDirectory(dir);
@@ -109,24 +199,14 @@ public final class ValhallaServer implements IRouter {
         return dir;
     }
 
-    private String getPath(String binary) throws IOException {
+    private static String getPath(String binary) throws IOException {
         final Path dir = getCacheDir().resolve("bin").resolve("valhalla");
-        if (!Files.isDirectory(dir)) {
-            Files.createDirectories(dir);
-        }
         final Path binDir = dir.resolve("bin");
         final Path binaryPath = binDir.resolve(binary);
-        if (!Files.isDirectory(binDir) && !Files.isExecutable(binaryPath)) {
-            if (PlatformManager.isPlatformOsx()) {
-                extractBinariesMacOS(dir);
-            } else {
-                throw new UnsupportedOperationException("Your platform is not currently supported"); // FIXME: Add other platforms
-            }
-        }
         return binaryPath.toString();
     }
 
-    private static void extractBinariesMacOS(Path dir) throws IOException {
+    private static void extractBinariesMacOS(ProgressMonitor updateable, Path dir) throws IOException {
         Objects.requireNonNull(dir);
         final String version = Optional.ofNullable(Routing2Plugin.getInfo().version).orElse("SNAPSHOT");
         final String linkStart = Optional.ofNullable(Routing2Plugin.getInfo().link)
@@ -147,12 +227,14 @@ public final class ValhallaServer implements IRouter {
                 throw new IllegalStateException("Valhalla server download location returned HTTP error code "
                         + response.getResponseCode() + ": " + response.getResponseMessage());
             }
+            updateable.setTicks(0);
             try (InputStream is = response.getContent();
-                    InputStream gis = new GZIPInputStream(is);
+                    ProgressInputStream pis = new ProgressInputStream(is, response.getContentLength(), updateable);
+                    InputStream gis = new GZIPInputStream(pis);
                     TarArchiveInputStream tais = new TarArchiveInputStream(gis)) {
                 byte[] bytes = new byte[1024];
                 TarArchiveEntry tarArchiveEntry;
-                while ((tarArchiveEntry = tais.getNextEntry()) != null) {
+                while (!updateable.isCanceled() && (tarArchiveEntry = tais.getNextEntry()) != null) {
                     Path saveLocation = dir.resolve(tarArchiveEntry.getName());
                     if (tarArchiveEntry.isDirectory()) {
                         if (!Files.isDirectory(saveLocation)) {
