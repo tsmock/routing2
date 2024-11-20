@@ -9,8 +9,11 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import javax.swing.JButton;
@@ -51,6 +54,7 @@ public class RoutingDialog extends ToggleDialog {
     }
 
     private void build() {
+        // TODO add routing methods/option button here, see https://valhalla.openstreetmap.de/ for sample
         final JosmTextField start = new JosmTextField();
         final JosmTextField end = new JosmTextField();
         final RouteInstructions instructions = new RouteInstructions();
@@ -67,17 +71,12 @@ public class RoutingDialog extends ToggleDialog {
             }
         });
         final JPanel dataPanel = new JPanel(new GridBagLayout());
-        start.setHint(tr("Copy coordinates to paste here ({0})",
-                MainApplication.getMainFrame().getMenu().copyCoordinates.getShortcut()));
-        end.setHint(start.getHint());
-        dataPanel.add(start, GBC.std());
+        start.addFocusListener(new HintListener(start, tr("Starting point")));
+        end.addFocusListener(new HintListener(end, tr("Destination")));
+        dataPanel.add(start, GBC.eol().fill(GBC.HORIZONTAL));
         dataPanel.add(end, GBC.eol().fill(GBC.HORIZONTAL));
         dataPanel.add(instructions, GBC.eol().fill(GBC.BOTH));
         this.createLayout(dataPanel, false, Collections.singleton(doRouting));
-        final ILatLon llStart = new LatLon(39.077652, -108.458828);
-        final ILatLon llStop = new LatLon(39.067613, -108.560153);
-        start.setText(llStart.lat() + ", " + llStart.lon());
-        end.setText(llStop.lat() + ", " + llStop.lon());
         new LatLonValidator(doRouting, start);
         new LatLonValidator(doRouting, end);
     }
@@ -101,6 +100,34 @@ public class RoutingDialog extends ToggleDialog {
                 scroller.add(new LegPanel(leg), GBC.eol().anchor(GBC.LINE_START).fill(GBC.BOTH));
             }
             this.add(GuiHelper.embedInVerticalScrollPane(scroller), GBC.eol().fill(GBC.BOTH));
+        }
+    }
+
+    private static class HintListener implements FocusListener {
+        private final String hint;
+        private final JTextComponent textComponent;
+
+        public HintListener(JTextComponent textComponent, String hint) {
+            Objects.requireNonNull(textComponent);
+            Objects.requireNonNull(hint);
+            this.textComponent = textComponent;
+            this.hint = hint;
+        }
+
+        @Override
+        public void focusGained(FocusEvent e) {
+            if (hint.equals(this.textComponent.getText())) {
+                this.textComponent.setText("");
+                this.textComponent.setForeground(Color.BLACK);
+            }
+        }
+
+        @Override
+        public void focusLost(FocusEvent e) {
+            if (this.textComponent.getText().isBlank() || this.hint.equals(this.textComponent.getText())) {
+                this.textComponent.setText(this.hint);
+                this.textComponent.setForeground(Color.GRAY);
+            }
         }
     }
 
