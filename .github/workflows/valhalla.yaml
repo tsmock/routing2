@@ -76,7 +76,15 @@ jobs:
           elif [ "${{ runner.os }}" == "macOS" ]; then cmake --build build -- -j$(sysctl -n hw.physicalcpu)
           elif [ "${{ runner.os }}" == "Linux" ]; then cmake --build build -- -j"$(nproc)"
           fi
-          if [ "${{ runner.os }}" == "Windows" ]; then tar -cavf build/valhalla-${{ inputs.valhalla_ref }}-Windows.tar.gz -C build/Release .
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            ls build
+            ls build/Release
+            # Create static python files
+            cython build/valhalla_build_config --embed
+            ls build
+            ls build/Release
+            gcc -Os $(python3-config --includes) valhalla_build_config.c -o build/Release/valhalla_build_config $(python3-config --ldflags --embed)
+            tar -cavf build/valhalla-${{ inputs.valhalla_ref }}-Windows.tar.gz -C build/Release .
           else sudo cmake --build build -- package
           fi
           ls build
