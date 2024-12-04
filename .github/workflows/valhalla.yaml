@@ -84,7 +84,7 @@ jobs:
             cython build/valhalla_build_config --embed
             ls build
             ls build/Release
-            gcc -Os $(python3-config --includes) valhalla_build_config.c -o build/Release/valhalla_build_config $(python3-config --ldflags --embed)
+            gcc -Os $(python-config --includes) valhalla_build_config.c -o build/Release/valhalla_build_config $(python-config --ldflags --embed)
             tar -cavf build/valhalla-${{ inputs.valhalla_ref }}-Windows.tar.gz -C build/Release .
           else sudo cmake --build build -- package
           fi
