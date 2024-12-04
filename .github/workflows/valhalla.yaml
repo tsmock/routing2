@@ -79,6 +79,7 @@ jobs:
           if [ "${{ runner.os }}" == "Windows" ]; then
             ls build
             ls build/Release
+            pip install Cython
             # Create static python files
             cython build/valhalla_build_config --embed
             ls build
