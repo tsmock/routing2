@@ -125,9 +125,13 @@ public final class ValhallaServer implements IRouter {
         if (!Files.isDirectory(binDir)) {
             updateable.subTask(tr("Downloading valhalla binaries"));
             if (PlatformManager.isPlatformOsx()) {
-                extractBinariesMacOS(updateable, dir);
+                extractBinaries(updateable, "Darwin", dir);
+            } else if (PlatformManager.isPlatformUnixoid()) {
+                extractBinaries(updateable, "Linux", dir);
+            } else if (PlatformManager.isPlatformWindows()) {
+                extractBinaries(updateable, "Windows", dir);
             } else {
-                throw new UnsupportedOperationException("Your platform is not currently supported"); // FIXME: Add other platforms
+                throw new UnsupportedOperationException("Your platform is not currently supported");
             }
             // Do this last in case of cancellation
             if (!updateable.isCanceled()) {
@@ -192,7 +196,7 @@ public final class ValhallaServer implements IRouter {
     }
 
     private static Path getCacheDir() throws IOException {
-        final Path dir = Config.getDirs().getUserDataDirectory(true).toPath().resolve("routing2");
+        final Path dir = Config.getDirs().getCacheDirectory(true).toPath().resolve("routing2");
         if (!Files.isDirectory(dir)) {
             Files.createDirectory(dir);
         }
@@ -206,7 +210,7 @@ public final class ValhallaServer implements IRouter {
         return binaryPath.toString();
     }
 
-    private static void extractBinariesMacOS(ProgressMonitor updateable, Path dir) throws IOException {
+    private static void extractBinaries(ProgressMonitor updateable, String platform, Path dir) throws IOException {
         Objects.requireNonNull(dir);
         final String version = Optional.ofNullable(Routing2Plugin.getInfo().version).orElse("SNAPSHOT");
         final String linkStart = Optional.ofNullable(Routing2Plugin.getInfo().link)
@@ -214,10 +218,10 @@ public final class ValhallaServer implements IRouter {
         final URI downloadLocation;
         if ("latest".equals(version) || "SNAPSHOT".equals(version)) {
             downloadLocation = URI
-                    .create(linkStart + "/releases/latest/download/valhalla-" + valhallaVersion + "-Darwin.tar.gz");
+                    .create(linkStart + "/releases/latest/download/valhalla-" + valhallaVersion + '-' + platform + ".tar.gz");
         } else {
             downloadLocation = URI.create(
-                    linkStart + "/releases/download/v" + version + "/valhalla-" + valhallaVersion + "-Darwin.tar.gz");
+                    linkStart + "/releases/download/v" + version + "/valhalla-" + valhallaVersion + '-' + platform + ".tar.gz");
         }
         HttpClient client = HttpClient.create(downloadLocation.toURL());
         try {
