@@ -66,7 +66,7 @@ public final class ValhallaServer implements IRouter {
             if (!Files.isRegularFile(versionFile) || !valhallaVersion.equals(Files.readString(versionFile))) {
                 return true;
             }
-            if (!Files.isDirectory(binDir)) {
+            if (!Files.isDirectory(binDir) && !PlatformManager.isPlatformWindows()) { // Windows doesn't have a bin dir
                 return true;
             }
         } catch (IOException ioException) {
@@ -205,6 +205,9 @@ public final class ValhallaServer implements IRouter {
 
     private static String getPath(String binary) throws IOException {
         final Path dir = getCacheDir().resolve("bin").resolve("valhalla");
+        if (PlatformManager.isPlatformWindows()) {
+            return dir.resolve(binary + ".exe").toString();
+        }
         final Path binDir = dir.resolve("bin");
         final Path binaryPath = binDir.resolve(binary);
         return binaryPath.toString();
