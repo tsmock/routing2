@@ -87,6 +87,7 @@ jobs:
             $(cd build && pyinstaller valhalla_build_config)
             ls build
             ls build/Release
+            ls build/dist
             cp build/dist/valhalla_build_config.exe build/Release
             ls build
             ls build/Release
