@@ -84,8 +84,10 @@ jobs:
             ls build/Release
             pip install -U pyinstaller
             # Create static python files
-            pyinstaller build/valhalla_build_config
-            cp dist/valhalla_build_config.exe build/Release
+            $(cd build && pyinstaller valhalla_build_config)
+            ls build
+            ls build/Release
+            cp build/dist/valhalla_build_config.exe build/Release
             ls build
             ls build/Release
             tar -cavf build/valhalla-${{ inputs.valhalla_ref }}-Windows.tar.gz -C build/Release .
