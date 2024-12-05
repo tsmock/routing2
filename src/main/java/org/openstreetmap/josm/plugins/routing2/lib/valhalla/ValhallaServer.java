@@ -220,11 +220,11 @@ public final class ValhallaServer implements IRouter {
                 .orElse("https://github.com/tsmock/routing2");
         final URI downloadLocation;
         if ("latest".equals(version) || "SNAPSHOT".equals(version)) {
-            downloadLocation = URI
-                    .create(linkStart + "/releases/latest/download/valhalla-" + valhallaVersion + '-' + platform + ".tar.gz");
-        } else {
             downloadLocation = URI.create(
-                    linkStart + "/releases/download/v" + version + "/valhalla-" + valhallaVersion + '-' + platform + ".tar.gz");
+                    linkStart + "/releases/latest/download/valhalla-" + valhallaVersion + '-' + platform + ".tar.gz");
+        } else {
+            downloadLocation = URI.create(linkStart + "/releases/download/v" + version + "/valhalla-" + valhallaVersion
+                    + '-' + platform + ".tar.gz");
         }
         HttpClient client = HttpClient.create(downloadLocation.toURL());
         try {

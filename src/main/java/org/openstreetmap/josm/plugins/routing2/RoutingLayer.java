@@ -6,6 +6,8 @@ import static org.openstreetmap.josm.tools.I18n.tr;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
 import java.util.Arrays;
@@ -123,6 +125,31 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
                 g.setStroke(new BasicStroke(5));
                 g.setColor(Color.RED);
                 g.draw(maneuverShape);
+                // Draw maneuver locations
+                for (Maneuver t : leg.maneuvers()) {
+                    final int i = t.startShape();
+                    final double lat = shape[2 * i];
+                    final double lon = shape[2 * i + 1];
+                    final Point2D p = mv.getPoint2D(new LatLon(lat, lon));
+                    final Point2D previous;
+                    final Point2D next;
+                    if (i == 0 && shape.length <= 2 * (i + 1) + 1) {
+                        previous = null;
+                        next = null;
+                    } else if (i == 0) {
+                        previous = null;
+                        next = mv.getPoint2D(new LatLon(shape[2 * (i + 1)], shape[2 * (i + 1) + 1]));
+                    } else if (shape.length <= 2 * (i + 1) + 1) {
+                        previous = mv.getPoint2D(new LatLon(shape[2 * (i - 1)], shape[2 * (i - 1) + 1]));
+                        next = null;
+                    } else {
+                        previous = mv.getPoint2D(new LatLon(shape[2 * (i - 1)], shape[2 * (i - 1) + 1]));
+                        next = mv.getPoint2D(new LatLon(shape[2 * (i + 1)], shape[2 * (i + 1) + 1]));
+                    }
+                    g.setColor(Color.ORANGE);
+                    g.drawRect((int) (p.getX() - 4), (int) (p.getY() - 4), 8, 8);
+                    paintArrow(g, t.type(), previous, p, next);
+                }
             }
             if (current.locations() != null) {
                 for (Locations loc : current.locations()) {
@@ -131,6 +158,43 @@ public class RoutingLayer extends Layer implements UndoRedoHandler.CommandQueueL
                     g.drawRect((int) point.getX(), (int) point.getY(), 3, 3);
                 }
             }
+        }
+    }
+
+    private void paintArrow(Graphics2D g, Maneuver.Type type, Point2D previous, Point2D current, Point2D next) {
+        final Polygon arrowHead = new Polygon();
+        arrowHead.addPoint(0, -5);
+        arrowHead.addPoint(-5, 5);
+        arrowHead.addPoint(5, 5);
+        final AffineTransform original = g.getTransform();
+        final AffineTransform transform = AffineTransform.getTranslateInstance(current.getX(), current.getY());
+        final double angle;
+        if (previous != null) {
+            angle = Math.atan2(current.getY() - previous.getY(), current.getX() - previous.getX()) + Math.PI / 2;
+        } else if (next != null) {
+            angle = Math.atan2(current.getY() - next.getY(), current.getX() - next.getX()) + Math.PI / 2;
+        } else {
+            angle = 0;
+        }
+        transform.rotate(angle);
+        transform.preConcatenate(original);
+        // Rotate relative to previous point
+        g.setColor(Color.YELLOW);
+        final double turnAngle = switch (type) {
+        case RIGHT, DESTINATION_RIGHT, EXIT_RIGHT, START_RIGHT -> Math.PI / 2;
+        case LEFT, DESTINATION_LEFT, EXIT_LEFT, START_LEFT -> 3 * Math.PI / 2;
+        // Don't bother painting arrows
+        case NONE -> Double.NaN;
+        default -> Double.NaN;
+        };
+        if (Double.isNaN(turnAngle))
+            return;
+        transform.rotate(turnAngle);
+        try {
+            g.setTransform(transform);
+            g.fill(arrowHead);
+        } finally {
+            g.setTransform(original);
         }
     }
 

@@ -25,7 +25,6 @@ import javax.swing.ListCellRenderer;
 import javax.swing.text.JTextComponent;
 
 import org.openstreetmap.josm.actions.JosmAction;
-import org.openstreetmap.josm.data.coor.ILatLon;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.coor.conversion.LatLonParser;
 import org.openstreetmap.josm.gui.MainApplication;
