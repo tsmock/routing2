@@ -88,6 +88,7 @@ jobs:
             ls build
             ls build/Release
             ls build/dist
+            ls build/dist/valhalla_build_config
             cp build/dist/valhalla_build_config build/Release/valhalla_build_config.exe
             ls build
             ls build/Release
