@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.8'
       - uses: actions/checkout@v4
         with:
           repository: valhalla/valhalla
@@ -88,8 +88,6 @@ jobs:
             ls build
             ls build/Release
             pwd
-            gci -Path "C:" -Recurse | where {$_.Name -like 'python*-config'}
-            gci -Path "D:" -Recurse | where {$_.Name -like 'python*-config'}
             gcc -Os $(python3-config --includes) valhalla_build_config.c -o build/Release/valhalla_build_config $(python3-config --ldflags --embed)
             tar -cavf build/valhalla-${{ inputs.valhalla_ref }}-Windows.tar.gz -C build/Release .
           else sudo cmake --build build -- package
