@@ -286,7 +286,7 @@ public final class ValhallaServer implements IRouter {
         try {
             final Path dataDir = getCacheDir();
             final Path config = dataDir.resolve("valhalla.json").toAbsolutePath();
-            if (!Files.exists(config)) {
+            if (!Files.exists(config) || Files.size(config) < 1) {
                 try (InputStream is = runCommand(getPath("valhalla_build_config"), "--mjolnir-tile-dir",
                         dataDir.resolve("valhalla_tiles").toString(), "--mjolnir-tile-extract",
                         dataDir.resolve("valhalla_tiles.tar").toString(), "--mjolnir-timezone",
