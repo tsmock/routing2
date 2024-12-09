@@ -206,7 +206,11 @@ public final class ValhallaServer implements IRouter {
     private static String getPath(String binary) throws IOException {
         final Path dir = getCacheDir().resolve("bin").resolve("valhalla");
         if (PlatformManager.isPlatformWindows()) {
-            return dir.resolve(binary + ".exe").toString();
+            final Path exe = dir.resolve(binary + ".exe");
+            if (Files.isExecutable(exe)) {
+                return exe.toString();
+            }
+            return dir.resolve(binary).toString();
         }
         final Path binDir = dir.resolve("bin");
         final Path binaryPath = binDir.resolve(binary);
