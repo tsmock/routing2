@@ -182,10 +182,13 @@ public final class ValhallaServer implements IRouter {
         try (BufferedReader br = new BufferedReader(p.inputReader())) {
             br.mark(40);
             try (JsonReader reader = Json.createReader(br)) {
-                data = reader.readObject();
-            } catch (JsonParsingException jsonParsingException) {
-                Logging.error(br.lines().collect(Collectors.joining("\n")));
-                throw jsonParsingException;
+                try {
+                    data = reader.readObject();
+                } catch (JsonParsingException jsonParsingException) {
+                    br.reset();
+                    Logging.error(br.lines().collect(Collectors.joining("\n")));
+                    throw jsonParsingException;
+                }
             }
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
