@@ -86,6 +86,7 @@ jobs:
             # Create static python files
             $(cd build && pyinstaller valhalla_build_config)
             cp build/dist/valhalla_build_config/valhalla_build_config.exe build/Release
+            cp build/valhalla_build_timezones build/Release
             tar -cavf build/valhalla-${{ inputs.valhalla_ref }}-Windows.tar.gz -C build/Release .
           else sudo cmake --build build -- package
           fi
