@@ -18,8 +18,10 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ForkJoinPool;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
+import jakarta.json.stream.JsonParsingException;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.openstreetmap.josm.data.coor.ILatLon;
@@ -177,8 +179,16 @@ public final class ValhallaServer implements IRouter {
             throw new UncheckedIOException(e);
         }
         final JsonObject data;
-        try (JsonReader reader = Json.createReader(p.inputReader())) {
-            data = reader.readObject();
+        try (BufferedReader br = new BufferedReader(p.inputReader())) {
+            br.mark(40);
+            try (JsonReader reader = Json.createReader(br)) {
+                data = reader.readObject();
+            } catch (JsonParsingException jsonParsingException) {
+                Logging.error(br.lines().collect(Collectors.joining("\n")));
+                throw jsonParsingException;
+            }
+        } catch (IOException ioException) {
+            throw new UncheckedIOException(ioException);
         }
         // check if error
         if (data.containsKey("status_code") && 200 != data.getInt("status_code")) {
