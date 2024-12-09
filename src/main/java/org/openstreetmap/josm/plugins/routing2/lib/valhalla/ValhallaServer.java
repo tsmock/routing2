@@ -151,7 +151,7 @@ public final class ValhallaServer implements IRouter {
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
         }
-        generateTimezones(config.resolveSibling("valhalla_tiles").resolve("timezones.sqlite"));
+        if (!PlatformManager.isPlatformWindows()) generateTimezones(config.resolveSibling("valhalla_tiles").resolve("timezones.sqlite"));
         generateAdmins(config, dataPath);
         generateTiles(config, dataPath);
         generateExtract(config);
