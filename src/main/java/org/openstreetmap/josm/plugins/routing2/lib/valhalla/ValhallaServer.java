@@ -165,15 +165,23 @@ public final class ValhallaServer implements IRouter {
         }
         builder.add("locations", locationsArray);
         Process p;
+        final Path route = config.resolveSibling("route.json");
         try {
             final String json = builder.build().toString();
-            String[] args = new String[] {getPath("valhalla_service"), config.toString(), "route", json};
+            Files.writeString(route, json);
+            String[] args = new String[] {getPath("valhalla_service"), config.toString(), "route", route.toString()};
             Logging.info("Route command: " + String.join(" ", args));
             ProcessBuilder processBuilder = new ProcessBuilder(args);
             processBuilder.directory(getCacheDir().toFile()); // FIXME remove
             p = processBuilder.start();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            try {
+                Files.deleteIfExists(route);
+            } catch (IOException ioException) {
+                throw new UncheckedIOException(ioException);
+            }
         }
         try (BufferedReader errors = p.errorReader()) {
             errors.lines().forEach(Logging::error);
