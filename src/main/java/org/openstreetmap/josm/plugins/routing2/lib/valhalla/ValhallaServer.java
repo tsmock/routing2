@@ -403,6 +403,7 @@ public final class ValhallaServer implements IRouter {
     }
 
     private static InputStream runCommand(String... args) throws IOException {
+        Logging.info("Running command: \"" + String.join(" ", args) + "\"");
         ProcessBuilder builder = new ProcessBuilder(args);
         Process p = builder.start();
         if (false) {
