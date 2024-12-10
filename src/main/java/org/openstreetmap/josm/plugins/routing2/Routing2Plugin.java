@@ -36,6 +36,9 @@ public class Routing2Plugin extends Plugin implements Destroyable {
         final List<RoutingLayer> layerList = new ArrayList<>(
                 MainApplication.getLayerManager().getLayersOfType(RoutingLayer.class));
         layerList.forEach(MainApplication.getLayerManager()::removeLayer);
+        if (MainApplication.getMap() != null) {
+            MainApplication.getMap().removeToggleDialog(MainApplication.getMap().getToggleDialog(RoutingDialog.class));
+        }
     }
 
     /**
