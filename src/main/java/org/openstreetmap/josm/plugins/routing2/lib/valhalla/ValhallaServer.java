@@ -166,8 +166,10 @@ public final class ValhallaServer implements IRouter {
         builder.add("locations", locationsArray);
         Process p;
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder(getPath("valhalla_service"), config.toString(), "route",
-                    builder.build().toString());
+            final String json = builder.build().toString();
+            String[] args = new String[] {getPath("valhalla_service"), config.toString(), "route", json};
+            Logging.info("Route command: " + String.join(" ", args));
+            ProcessBuilder processBuilder = new ProcessBuilder(args);
             processBuilder.directory(getCacheDir().toFile()); // FIXME remove
             p = processBuilder.start();
         } catch (IOException e) {
@@ -405,6 +407,7 @@ public final class ValhallaServer implements IRouter {
     private static InputStream runCommand(String... args) throws IOException {
         Logging.info("Running command: \"" + String.join(" ", args) + "\"");
         ProcessBuilder builder = new ProcessBuilder(args);
+        builder.directory(getCacheDir().toFile());
         Process p = builder.start();
         if (false) {
             try {
