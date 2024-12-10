@@ -94,6 +94,13 @@ jobs:
             tar -cavf build/valhalla-${{ inputs.valhalla_ref }}-Windows.tar.gz -C build/Release .
           else sudo cmake --build build -- package
           fi
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            # Strip first path component.
+            mkdir tmp
+            tar -xf build/valhalla-${{ inputs.valhalla_ref }}-Linux.tar.gz -C tmp
+            rm build/valhalla-${{ inputs.valhalla_ref }}-Linux.tar.gz
+            tar -cavf build/valhalla-${{ inputs.valhalla_ref }}-Linux.tar.gz -C tmp/valhalla-${{ inputs.valhalla_ref }}-Linux .
+          fi
           ls build
       - name: Debug output
         if: failure()
