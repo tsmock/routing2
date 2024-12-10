@@ -85,7 +85,7 @@ jobs:
             pip install -U pyinstaller
             # Create static python files
             $(cd build && pyinstaller valhalla_build_config valhalla_build_extract)
-            ls build/dist
+            ls build/dist/valhalla_build_config
             cp build/dist/valhalla_build_config/valhalla_build_config.exe build/Release
             cp build/dist/valhalla_build_extract/valhalla_build_extract.exe build/Release
             cp build/valhalla_build_timezones build/Release
