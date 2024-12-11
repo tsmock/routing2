@@ -96,6 +96,7 @@ jobs:
             curl -LO https://download.geofabrik.de/north-america/us/district-of-columbia-latest.osm.pbf
             ./build/Release/valhalla_build_config.exe --mjolnir-tile-dir valhalla_tiles --mjolnir-tile-extract valhalla_tiles.tar --mjolnir-timezone valhalla_tiles/timezones.sqlite --mjolnir-admin valhalla_tiles/admins.sqlite > valhalla.json
             cat valhalla.json
+            mkdir valhalla_tiles
             # Skip timezones for now
             ./build/Release/valhalla_build_admins.exe --config valhalla.json district-of-columbia-latest.osm.pbf
             ./build/Release/valhalla_build_tiles.exe --config valhalla.json district-of-columbia-latest.osm.pbf
