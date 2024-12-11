@@ -102,8 +102,9 @@ jobs:
             ./build/Release/valhalla_build_tiles.exe --config valhalla.json district-of-columbia-latest.osm.pbf
             ./build/Release/valhalla_build_extract.exe --config valhalla.json -v --overwrite
             echo "cli"
-            ./build/Release/valhalla_service.exe valhalla.json route '{"costing":"auto","directions_options":{"units":"miles"},"locations":[{"lat":38.8974728,"lon":-77.0365482},{"lat":38.8898027,"lon":-77.0094179}]}'
+            #./build/Release/valhalla_service.exe valhalla.json route '{"costing":"auto","directions_options":{"units":"miles"},"locations":[{"lat":38.8974728,"lon":-77.0365482},{"lat":38.8898027,"lon":-77.0094179}]}'
             echo -n '{"costing":"auto","directions_options":{"units":"miles"},"locations":[{"lat":38.8974728,"lon":-77.0365482},{"lat":38.8898027,"lon":-77.0094179}]}' > route.json
+            cat route.json
             echo "File"
             ./build/Release/valhalla_service.exe valhalla.json route route.json
           else sudo cmake --build build -- package
