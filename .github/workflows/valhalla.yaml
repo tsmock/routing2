@@ -70,9 +70,9 @@ jobs:
           npm install --ignore-scripts
           mkdir build
           # We don't need python bindings
-          sed -i.bak '/pybind11/d' vcpkg.json
+          #sed -i.bak '/pybind11/d' vcpkg.json
           # We don't need gdal (we disable compile-time support for it)
-          sed -i.bak '/gdal/d' vcpkg.json
+          #sed -i.bak '/gdal/d' vcpkg.json
           export CMAKE_MAKE_PROGRAM=make && export CMAKE_CXX_COMPILER=g++ && export CMAKE_C_COMPILER=gcc
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake -DDENABLE_STATIC_LIBRARY_MODULES=ON -DBUILD_SHARED_LIBS=OFF -DDENABLE_GDAL=OFF -DENABLE_SERVICES=ON -DENABLE_SINGLE_FILES_WERROR=OFF
           if [ "${{ runner.os }}" == "Windows" ]; then cmake --build build --config Release -- //clp:ErrorsOnly //p:BuildInParallel=true //m:8
