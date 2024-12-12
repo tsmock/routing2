@@ -58,6 +58,21 @@ jobs:
             os="linux"
           elif [ "${{ runner.os }}" == "Windows" ]; then
             os="windows-static"
+            cat <<EOF | git apply
+            diff --git a/scripts/valhalla_build_extract b/scripts/valhalla_build_extract
+            index 236822513..0ccafabf6 100755
+            --- a/scripts/valhalla_build_extract
+            +++ b/scripts/valhalla_build_extract
+            @@ -95,7 +95,7 @@ class TileResolver:
+                             tar.addfile(tar_member, self._tar_obj.extractfile(tar_member.name))
+                         else:
+                             tar.add(str(self.path.joinpath(t)), arcname=t)
+            -                tar_member = tar.getmember(str(t))
+            +                #tar_member = tar.getmember(str(t))
+
+
+            description = "Builds a tar extract from the tiles in mjolnir.tile_dir to the path specified in mjolnir.tile_extract."
+          EOF
           fi
           export VCPKG_ROOT=$(pwd)/vcpkg
           ./vcpkg/bootstrap-vcpkg.sh
