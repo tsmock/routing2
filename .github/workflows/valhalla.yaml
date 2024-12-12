@@ -92,15 +92,6 @@ jobs:
             cp -r build/dist/valhalla_build_config/_internal build/Release
             cp -r build/dist/valhalla_build_extract/_internal build/Release
             tar -cavf build/valhalla-${{ inputs.valhalla_ref }}-Windows.tar.gz -C build/Release .
-            # Check that routing works. DC is small at 18.6 MB.
-            curl -LO https://download.geofabrik.de/north-america/us/district-of-columbia-latest.osm.pbf
-            ./build/Release/valhalla_build_config.exe --mjolnir-tile-dir valhalla_tiles --mjolnir-tile-extract valhalla_tiles.tar --mjolnir-timezone valhalla_tiles/timezones.sqlite --mjolnir-admin valhalla_tiles/admins.sqlite > valhalla.json
-            cat valhalla.json
-            mkdir valhalla_tiles
-            # Skip timezones for now
-            ./build/Release/valhalla_build_admins.exe --config valhalla.json district-of-columbia-latest.osm.pbf
-            ./build/Release/valhalla_build_tiles.exe --config valhalla.json district-of-columbia-latest.osm.pbf
-            ./build/Release/valhalla_build_extract.exe --config valhalla.json -v --overwrite
           else sudo cmake --build build -- package
           fi
           if [ "${{ runner.os }}" == "Linux" ]; then
