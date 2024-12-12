@@ -176,12 +176,6 @@ public final class ValhallaServer implements IRouter {
             p = processBuilder.start();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        } finally {
-            try {
-                Files.deleteIfExists(route);
-            } catch (IOException ioException) {
-                throw new UncheckedIOException(ioException);
-            }
         }
         try (BufferedReader errors = p.errorReader()) {
             errors.lines().forEach(Logging::error);
@@ -322,7 +316,7 @@ public final class ValhallaServer implements IRouter {
     }
 
     private void generateAdmins(Path config, Path input) {
-        // FIXME: This needs to have full boundary information
+        // FIXME: This needs to have full boundary information. Overpass download?
         try (InputStream is = runCommand(getPath("valhalla_build_admins"), "--config", config.toString(),
                 input.toString())) {
             printStdOut(is);
