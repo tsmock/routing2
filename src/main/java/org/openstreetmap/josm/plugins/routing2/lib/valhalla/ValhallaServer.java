@@ -21,12 +21,16 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
+import javax.swing.JOptionPane;
+
 import jakarta.json.stream.JsonParsingException;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.openstreetmap.josm.data.coor.ILatLon;
+import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.gui.layer.OsmDataLayer;
 import org.openstreetmap.josm.gui.progress.ProgressMonitor;
+import org.openstreetmap.josm.gui.util.GuiHelper;
 import org.openstreetmap.josm.io.ProgressInputStream;
 import org.openstreetmap.josm.plugins.pbf.io.PbfExporter;
 import org.openstreetmap.josm.plugins.routing2.Routing2Plugin;
@@ -153,7 +157,8 @@ public final class ValhallaServer implements IRouter {
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
         }
-        if (!PlatformManager.isPlatformWindows()) generateTimezones(config.resolveSibling("valhalla_tiles").resolve("timezones.sqlite"));
+        if (!PlatformManager.isPlatformWindows())
+            generateTimezones(config.resolveSibling("valhalla_tiles").resolve("timezones.sqlite"));
         generateAdmins(config, dataPath);
         generateTiles(config, dataPath);
         generateExtract(config);
@@ -169,7 +174,7 @@ public final class ValhallaServer implements IRouter {
         try {
             final String json = builder.build().toString();
             Files.writeString(route, json);
-            String[] args = new String[] {getPath("valhalla_service"), config.toString(), "route", route.toString()};
+            String[] args = new String[] { getPath("valhalla_service"), config.toString(), "route", route.toString() };
             Logging.info("Route command: " + String.join(" ", args));
             ProcessBuilder processBuilder = new ProcessBuilder(args);
             processBuilder.directory(getCacheDir().toFile()); // FIXME remove
@@ -200,6 +205,8 @@ public final class ValhallaServer implements IRouter {
         // check if error
         if (data.containsKey("status_code") && 200 != data.getInt("status_code")) {
             if (data.getInt("error_code") == 442) {
+                GuiHelper.runInEDTAndWait(
+                        () -> new Notification(tr("No route found")).setIcon(JOptionPane.WARNING_MESSAGE).show());
                 return null; // No route found // FIXME: Throw RouteException with message?
             } // FIXME: Look through https://valhalla.github.io/valhalla/api/turn-by-turn/api-reference/#http-status-codes-and-conditions for other "valid" problems.
             throw new JosmRuntimeException(data.toString());
