@@ -43,7 +43,7 @@ jobs:
         id: build-cache
         uses: actions/cache@v4
         with:
-          path: build/valhalla-${{ inputs.valhalla_ref }}-Darwin.tar.gz
+          path: build/valhalla-${{ inputs.valhalla_ref }}-${{ runner.os }}.tar.gz
           key: ${{ runner.os }}-${{ runner.arch }}-valhalla-${{ inputs.valhalla_ref }}
       - name: Build valhalla
         if: steps.build-cache.outputs.cache-hit != 'true'
