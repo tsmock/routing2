@@ -58,7 +58,7 @@ jobs:
             os="linux"
           elif [ "${{ runner.os }}" == "Windows" ]; then
             os="windows-static"
-            cat <<EOF | git apply
+            cat <<EOF > 1.patch
             diff --git a/scripts/valhalla_build_extract b/scripts/valhalla_build_extract
             index 236822513..0ccafabf6 100755
             --- a/scripts/valhalla_build_extract
@@ -71,8 +71,9 @@ jobs:
             +                #tar_member = tar.getmember(str(t))
 
 
-            description = "Builds a tar extract from the tiles in mjolnir.tile_dir to the path specified in mjolnir.tile_extract."
-          EOF
+             description = "Builds a tar extract from the tiles in mjolnir.tile_dir to the path specified in mjolnir.tile_extract."
+            EOF
+            git apply 1.patch
           fi
           export VCPKG_ROOT=$(pwd)/vcpkg
           ./vcpkg/bootstrap-vcpkg.sh
